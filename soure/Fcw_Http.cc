@@ -1,4 +1,4 @@
-#include "Fcw_Http.hpp"
+#include "../include/Fcw_Http.hpp"
     HttpRequest::HttpRequest() 
     : _version("HTTP/1.1") {}
     void HttpRequest::reSet(){
@@ -72,7 +72,93 @@
         return true;
     }
 
+//解析文件body
+bool HttpRequest::parseMultipart() {
+    // 1. 检查 Content-Type 是否为 multipart/form-data
+    std::string content_type = getHeader("Content-Type");
+    if (content_type.find("multipart/form-data") == std::string::npos) {
+        return false; // 不是 multipart 请求
+    }
 
+    // 2. 提取 boundary 字符串
+    const std::string boundary_prefix = "boundary=";
+    size_t boundary_pos = content_type.find(boundary_prefix);
+    if (boundary_pos == std::string::npos) {
+        return false;
+    }
+    std::string boundary = "--" + content_type.substr(boundary_pos + boundary_prefix.size());
+
+    // 3. 按 boundary 分割 _body
+    std::vector<std::string> parts;
+    size_t start = 0;
+    while (true) {
+        size_t pos = _body.find(boundary, start);
+        if (pos == std::string::npos) break;
+        start = pos + boundary.size();
+        // 跳过可能的换行符
+        if (_body[start] == '\r') start++;
+        if (_body[start] == '\n') start++;
+        size_t next_pos = _body.find(boundary, start);
+        if (next_pos == std::string::npos) break;
+        parts.push_back(_body.substr(start, next_pos - start));
+    }
+
+    // 4. 解析每个部分
+    for (const auto& part : parts) {
+        if (part.empty() || part.find("Content-Disposition") == std::string::npos) {
+            continue;
+        }
+
+        // 分离头部和内容（头部与内容之间有一个空行 \r\n\r\n）
+        size_t header_end = part.find("\r\n\r\n");
+        if (header_end == std::string::npos) continue;
+        std::string headers = part.substr(0, header_end);
+        std::string content = part.substr(header_end + 4);
+
+        // 去掉末尾的 \r\n（如果存在）
+        if (content.size() >= 2 && content[content.size()-2] == '\r' && content[content.size()-1] == '\n') {
+            content.resize(content.size() - 2);
+        }
+
+        // 解析 Content-Disposition 获取 name 和 filename
+        std::string name, filename;
+        size_t name_pos = headers.find("name=\"");
+        if (name_pos != std::string::npos) {
+            name_pos += 6;
+            size_t name_end = headers.find("\"", name_pos);
+            if (name_end != std::string::npos) {
+                name = headers.substr(name_pos, name_end - name_pos);
+            }
+        }
+
+        size_t filename_pos = headers.find("filename=\"");
+        if (filename_pos != std::string::npos) {
+            filename_pos += 10;
+            size_t filename_end = headers.find("\"", filename_pos);
+            if (filename_end != std::string::npos) {
+                filename = headers.substr(filename_pos, filename_end - filename_pos);
+            }
+        }
+
+        if (!name.empty() && !filename.empty() && !content.empty()) {
+            MultipartFile file;
+            file.filename = filename;
+            file.content = content;
+            // 可选：解析 Content-Type
+            size_t ct_pos = headers.find("Content-Type: ");
+            if (ct_pos != std::string::npos) {
+                ct_pos += 14;
+                size_t ct_end = headers.find("\r\n", ct_pos);
+                if (ct_end != std::string::npos) {
+                    file.content_type = headers.substr(ct_pos, ct_end - ct_pos);
+                }
+            }
+            _multipart_files[name] = file;
+        }
+    }
+
+    return !_multipart_files.empty();
+}
 
 
 
@@ -82,6 +168,7 @@
 
 
 // http的响应
+
     HttpResponse::HttpResponse() 
     : _redirect_flag(false)
     , _statu(200) 
@@ -90,6 +177,29 @@
     : _redirect_flag(false)
     , _statu(statu) {}
 
+    // 设置状态码
+    void HttpResponse::setStatus(int statu){
+        _statu = statu;
+    }
+    // 根据请求自动设置 Connection 头
+    void  HttpResponse::setKeepAliveByRequest(const HttpRequest &req){
+        std::string conn = req.getHeader("Connection");
+        bool keepAlive = false;
+        if (req._version == "HTTP/1.1"){
+            // HTTP/1.1 默认长连接，除非客户端要求 close
+            keepAlive = (conn != "close");
+        }
+        else if (req._version == "HTTP/1.0"){
+            // HTTP/1.0 默认短连接，只有明确要求 keep-alive 才长连接
+            keepAlive = (conn == "keep-alive");
+        }
+        if (keepAlive){
+            setHeader("Connection", "keep-alive");
+        }
+        else{
+            setHeader("Connection", "close");
+        }
+    }
     //清空防止干扰
     void HttpResponse::reSet(){
         _statu = 200;//默认返回200
@@ -312,6 +422,7 @@
             _request._body.append(buf->readPos(), real_len);
             buf->moveReadOffset(real_len);
             _recv_statu = RECV_HTTP_OVER;
+            
             return true;
         }
         // 3.2 缓冲区中数据，⽆法满⾜当前正⽂的需要，数据不⾜，取出数据，然后等待新数据到来
@@ -335,7 +446,7 @@
     
     // 接收并解析HTTP请求
     void HttpContext::recvHttpRequest(Buffer *buf){
-        DBG_LOG("解析请求中。。。");
+        //DBG_LOG("解析请求中。。。");
         // 不同的状态，做不同的事情，但是这⾥不要break， 因为处理完请求⾏后，应该⽴即处理头部，⽽不是退出等新数据
         //一开始是请求行
         //利用switch的贯穿，即使你跳出，也会继续执行下面的

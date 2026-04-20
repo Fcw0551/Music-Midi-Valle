@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 · 霓虹乐章</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* ========== 前端同事设计样式（一字未改） ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background-color: #ffffff;
+            background-image:
+                linear-gradient(to bottom, #eeeeee 1px, transparent 1px),
+                linear-gradient(to bottom, #eeeeee 1px, transparent 1px);
+            background-size: 100% 40px;
+            background-position: 0 20px, 0 60px;
+            min-height: 100vh;
+            color: #333333;
+            padding: 2rem;
+            line-height: 1.5;
+            transition: all 0.4s ease;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body.dark {
+            background-color: #111111;
+            background-image:
+                linear-gradient(to bottom, #222222 1px, transparent 1px),
+                linear-gradient(to bottom, #222222 1px, transparent 1px);
+            background-size: 100% 40px;
+            background-position: 0 20px, 0 60px;
+            color: #eeeeee;
+        }
+
+        .notes {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .note {
+            position: absolute;
+            color: rgba(100, 100, 100, 0.3);
+            font-size: 40px;
+            animation: fall linear infinite;
+            top: -60px;
+        }
+        body.dark .note {
+            color: rgba(200, 200, 200, 0.25);
+        }
+        @keyframes fall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+            padding: 1rem 2rem;
+            background: rgba(255,255,255,0.4);
+            backdrop-filter: blur(15px);
+            border-radius: 60px;
+            border: 1px solid rgba(0,0,0,0.08);
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 999;
+        }
+        body.dark .header {
+            background: rgba(20,20,20,0.5);
+            border: 1px solid rgba(100,100,100,0.2);
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+        }
+
+        .header h1 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: #333333;
+            letter-spacing: -0.5px;
+        }
+        body.dark .header h1 {
+            color: #ffffff;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        button {
+            --button_radius: 0.75em;
+            --button_color: #e8e8e8;
+            --button_outline_color: #000000;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            border-radius: var(--button_radius);
+            background: var(--button_outline_color);
+        }
+        .button_top {
+            display: block;
+            box-sizing: border-box;
+            border: 2px solid var(--button_outline_color);
+            border-radius: var(--button_radius);
+            padding: 0.5em 1.2em;
+            background: var(--button_color);
+            color: var(--button_outline_color);
+            transform: translateY(-0.2em);
+            transition: transform 0.1s ease;
+        }
+        button:hover .button_top {
+            transform: translateY(-0.33em);
+        }
+        button:active .button_top {
+            transform: translateY(0);
+        }
+        body.dark button {
+            --button_color: #2d3748;
+            --button_outline_color: #e2e8f0;
+        }
+        button.small .button_top {
+            padding: 0.3em 0.8em;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card,
+        .chart-card,
+        .card {
+            background: rgba(255,255,255,0.3);
+            backdrop-filter: blur(12px);
+            border-radius: 32px;
+            padding: 1.8rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.04) inset;
+            border: 1px solid rgba(0,0,0,0.04);
+            transition: transform 0.2s ease, box-shadow 0.2s;
+        }
+        body.dark .stat-card,
+        body.dark .chart-card,
+        body.dark .card {
+            background: rgba(20,20,20,0.5);
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(100,100,100,0.1) inset;
+            border: 1px solid rgba(100,100,100,0.05);
+        }
+
+        .stat-card:hover,
+        .chart-card:hover,
+        .card:hover {
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
+        }
+        body.dark .stat-card:hover,
+        body.dark .chart-card:hover,
+        body.dark .card:hover {
+            box-shadow: 0 25px 50px -12px #000000;
+        }
+
+        .stat-card h3,
+        .chart-header h3 {
+            font-size: 1.4rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            padding-bottom: 0.8rem;
+        }
+        body:not(.dark) .stat-card h3,
+        body:not(.dark) .chart-header h3 {
+            color: #333333;
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+        }
+        body.dark .stat-card h3,
+        body.dark .chart-header h3 {
+            color: #eeeeee;
+            border-bottom: 1px solid rgba(100,100,100,0.2);
+        }
+
+        .stat-card .value {
+            font-size: 2.8rem;
+            font-weight: 700;
+        }
+        body:not(.dark) .stat-card .value {
+            color: #444444;
+        }
+        body.dark .stat-card .value {
+            color: #dddddd;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .chart-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.9rem 1.2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(0,0,0,0.1);
+            background: rgba(255,255,255,0.5);
+            backdrop-filter: blur(6px);
+        }
+        body:not(.dark) .search-input {
+            color: #333;
+        }
+        body.dark .search-input {
+            background: rgba(0,0,0,0.2);
+            color: #eee;
+            border-color: rgba(100,100,100,0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem 0.5rem 0.8rem 0.5rem;
+            font-weight: 600;
+            border-bottom: 2px solid #cccccc;
+        }
+        body:not(.dark) th {
+            color: #333333;
+        }
+        body.dark th {
+            color: #eeeeee;
+            border-bottom: 2px solid #444444;
+        }
+
+        td {
+            padding: 0.9rem 0.5rem;
+            border-bottom: 1px solid #dddddd;
+        }
+        body:not(.dark) td {
+            color: #333333;
+        }
+        body.dark td {
+            border-bottom: 1px solid #333333;
+            color: #cccccc;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .role-badge {
+            padding: 0.3rem 0.9rem;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        body:not(.dark) .role-badge {
+            background: rgba(0,0,0,0.06);
+            color: #333333;
+        }
+        body.dark .role-badge {
+            background: #333333;
+            color: #eeeeee;
+        }
+        .role-admin {
+            background: #fef3c7;
+            color: #d97706;
+        }
+        body.dark .role-admin {
+            background: #854d0e;
+            color: #fde047;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            padding-bottom: 0.5rem;
+        }
+        body.dark .tabs {
+            border-bottom-color: rgba(100,100,100,0.2);
+        }
+        .tab {
+            padding: 0.7rem 1.4rem;
+            cursor: pointer;
+            border-radius: 20px;
+            background: transparent;
+            color: #6b7280;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+        body.dark .tab {
+            color: #94a3b8;
+        }
+        .tab.active {
+            background: #666;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: 0.2s;
+        }
+        body:not(.dark) .drawer-overlay {
+            background: rgba(0,0,0,0.3);
+        }
+        body.dark .drawer-overlay {
+            background: rgba(0,0,0,0.7);
+        }
+        .drawer-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 600px;
+            max-width: 90vw;
+            height: 100%;
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(20px);
+        }
+        body:not(.dark) .drawer {
+            background: rgba(255,255,255,0.9);
+            box-shadow: -5px 0 30px rgba(0,0,0,0.15);
+        }
+        body.dark .drawer {
+            background: rgba(20,20,20,0.95);
+            box-shadow: -5px 0 30px rgba(0,0,0,0.8);
+        }
+        .drawer.show {
+            transform: translateX(0);
+        }
+        .drawer-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        body.dark .drawer-header {
+            border-bottom-color: rgba(100,100,100,0.2);
+        }
+        .drawer-header h3 {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+        body:not(.dark) .drawer-header h3 {
+            color: #222;
+        }
+        body.dark .drawer-header h3 {
+            color: #eee;
+        }
+        .drawer-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+        body.dark .drawer-close {
+            color: #ccc;
+        }
+        .drawer-body {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        .drawer-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+        body.dark .drawer-footer {
+            border-top-color: rgba(100,100,100,0.2);
+        }
+        .task-detail-table {
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        .task-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        audio {
+            border-radius: 30px;
+        }
+        body:not(.dark) audio {
+            background: #eeeeee;
+        }
+        body.dark audio {
+            background: #222222;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        body:not(.dark) .modal-overlay {
+            background: rgba(0,0,0,0.3);
+        }
+        body.dark .modal-overlay {
+            background: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            padding: 2rem;
+            border-radius: 20px;
+            width: 400px;
+            max-width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            backdrop-filter: blur(20px);
+        }
+        body:not(.dark) .modal-content {
+            background: rgba(255,255,255,0.95);
+        }
+        body.dark .modal-content {
+            background: rgba(20,20,20,0.95);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        .modal-content h3 {
+            margin-bottom: 1.5rem;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+        body:not(.dark) .modal-content h3 {
+            color: #222222;
+        }
+        body.dark .modal-content h3 {
+            color: #eeeeee;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 0.9rem 1.2rem;
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        body:not(.dark) .modal-content input {
+            background: rgba(255,255,255,0.5);
+            color: #222222;
+        }
+        body.dark .modal-content input {
+            background: rgba(0,0,0,0.2);
+            color: #eeeeee;
+            border-color: rgba(100,100,100,0.3);
+        }
+
+        .container-music {
+            transform: scale(0.6);
+            transform-origin: top right;
+            width: 175px;
+            height: 175px;
+            background-color: #dddddd;
+            border-radius: 10px;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            box-shadow: 5px 5px 0 0 #666666;
+            cursor: pointer;
+            z-index: 9999;
+            transition: all 0.3s ease;
+        }
+        .plate { width: fit-content; }
+        .plate .black,.plate .white,.plate .center,.plate .border { border-radius: 100%; }
+        .container-music,.plate .black,.plate .white,.plate .border { display: flex; align-items: center; justify-content: center; }
+        .plate .black { width: 150px; height: 150px; background-color: #666666; animation: rotation 2s infinite linear; }
+        @keyframes rotation { from { transform: rotate(0deg); } to { transform: rotate(359deg); } }
+        .plate .white { width: 70px; height: 70px; background-color: #f5f5f5; }
+        .plate .center { width: 20px; height: 20px; background-color: #666666; }
+        .plate .border { width: 111px; height: 111px; border-top:3px solid #f5f5f5; border-bottom:3px solid #f5f5f5; border-left:3px solid #666666; border-right:3px solid #666666; }
+        .player { display: flex; align-items: center; justify-content: center; flex-direction: column; width: fit-content; position: absolute; bottom:0; right:0; margin-bottom:8px; margin-right:8px; rotate:-45deg; }
+        .player .circ { width:25px; height:25px; background-color:#f5f5f5; border-radius:100%; z-index:1; }
+        .player .rect { width:10px; height:55px; background-color:#f5f5f5; position:absolute; bottom:0; margin-bottom:5px; }
+    </style>
+</head>
+<body>
+
+<div class="notes" id="notes"></div>
+<div class="container-music" onclick="toggleDarkMode()">
+    <div class="plate">
+        <div class="black">
+            <div class="border">
+                <div class="white">
+                    <div class="center"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="player">
+        <div class="rect"></div>
+        <div class="circ"></div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="header">
+        <h1>管理后台</h1>
+        <div class="user-badge">
+            <span id="adminName">超级管理员</span>
+            <button id="logoutBtn"><span class="button_top">退出登录</span></button>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>总用户数</h3>
+            <div class="value" id="totalUsers">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>总任务数</h3>
+            <div class="value" id="totalTasks">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>今日新增任务</h3>
+            <div class="value" id="todayTasks">-</div>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>任务状态分布</h3>
+            <div class="chart-toggle">
+                <button id="pieChartBtn"><span class="button_top">饼图</span></button>
+                <button id="lineChartBtn"><span class="button_top">折线图</span></button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="statusChart" width="400" height="400"></canvas>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="users">用户管理</div>
+        <div class="tab" data-tab="tasks">任务管理</div>
+    </div>
+
+    <div id="users-panel" class="tab-content active">
+        <div class="card">
+            <div class="controls">
+                <input type="text" id="userSearchInput" class="search-input" placeholder="搜索用户名">
+                <button id="userSearchBtn"><span class="button_top">搜索</span></button>
+                <button id="userRefreshBtn"><span class="button_top">刷新</span></button>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>用户名</th><th>角色</th><th>注册时间</th><th>操作</th></tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <tr><td colspan="4" style="text-align:center;">加载中...</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="userPagination"></div>
+        </div>
+    </div>
+
+    <div id="tasks-panel" class="tab-content">
+        <div class="card">
+            <div class="controls">
+                <input type="text" id="taskSearchInput" class="search-input" placeholder="搜索用户名">
+                <button id="taskSearchBtn"><span class="button_top">搜索</span></button>
+                <button id="taskRefreshBtn"><span class="button_top">刷新</span></button>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>用户ID</th><th>用户名</th><th>任务数量</th><th>操作</th></tr>
+                </thead>
+                <tbody id="taskTableBody">
+                    <tr><td colspan="4" style="text-align:center;">加载中...</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="taskPagination"></div>
+        </div>
+    </div>
+</div>
+
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<div class="drawer" id="drawer">
+    <div class="drawer-header">
+        <h3 id="drawerTitle">任务详情</h3>
+        <button class="drawer-close" id="drawerClose">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody">
+        <div style="text-align:center; padding:2rem;">加载中...</div>
+    </div>
+    <div class="drawer-footer" id="drawerPagination"></div>
+</div>
+
+<div class="modal-overlay" id="passwordModal">
+    <div class="modal-content">
+        <h3>设置新密码</h3>
+        <p style="margin-bottom:0.5rem; color: inherit;">用户：<span id="targetUserName"></span></p>
+        <input type="password" id="newPasswordInput" placeholder="新密码（至少6位）">
+        <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+            <button onclick="closePasswordModal()"><span class="button_top">取消</span></button>
+            <button onclick="submitSetPassword()"><span class="button_top">确认</span></button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 暗色模式
+    function toggleDarkMode() {
+        document.body.classList.toggle('dark');
+        localStorage.setItem('darkMode', document.body.classList.contains('dark'));
+    }
+    function createNotes() {
+        const notesContainer = document.getElementById('notes');
+        const notes = ['♪','♫','♩','♬'];
+        setInterval(() => {
+            const note = document.createElement('div');
+            note.classList.add('note');
+            note.innerText = notes[Math.floor(Math.random()*notes.length)];
+            note.style.left = Math.random()*100+'vw';
+            note.style.animationDuration = (Math.random()*4+8)+'s';
+            notesContainer.appendChild(note);
+            setTimeout(() => note.remove(), 10000);
+        }, 1200);
+    }
+
+    // ========== 业务逻辑整合（完全保留原有功能） ==========
+    (function() {
+        "use strict";
+
+        if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark');
+        createNotes();
+
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username') || '管理员';
+        const role = localStorage.getItem('role') || 'super_admin';
+
+        if (!token || role !== 'super_admin') {
+            localStorage.clear();
+            window.location.replace('/');
+            return;
+        }
+
+        document.getElementById('adminName').innerText = username;
+
+        // 退出登录
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.clear();
+            window.location.replace('/index.html');
+        });
+
+        // 标签页切换
+        let taskDataLoaded = false;
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                const panelId = tab.dataset.tab === 'users' ? 'users-panel' : 'tasks-panel';
+                document.getElementById(panelId).classList.add('active');
+                if (tab.dataset.tab === 'tasks' && !taskDataLoaded) {
+                    loadTaskStats();
+                }
+            });
+        });
+
+        // 请求封装
+        async function authFetch(url, options = {}) {
+            const headers = { 'Authorization': `Bearer ${token}`, ...options.headers };
+            const response = await fetch(url, { ...options, headers });
+            if (!response.ok) throw new Error(await response.text());
+            return response.json();
+        }
+
+        // 仪表盘
+        let dashboardTimer = null;
+        let currentChartType = 'pie';
+        let lastStatusCounts = {};
+        let chartInstance = null;
+
+        function renderChart(statusCounts) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            const labels = ['等待中', '处理中', '已完成', '失败'];
+            const data = [statusCounts.pending||0, statusCounts.processing||0, statusCounts.completed||0, statusCounts.failed||0];
+            if (currentChartType === 'pie') {
+                chartInstance = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                            backgroundColor: ['#fbbf24','#3b82f6','#10b981','#ef4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { plugins: { legend: { labels: { color: document.body.classList.contains('dark')?'#eee':'#333' } } } }
+                });
+            } else {
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: '任务数量',
+                            data,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59,130,246,0.1)',
+                            borderWidth: 3,
+                            pointBackgroundColor: '#fbbf24',
+                            pointRadius: 5,
+                            tension: 0.2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        plugins: { legend: { labels: { color: document.body.classList.contains('dark')?'#eee':'#333' } } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: document.body.classList.contains('dark')?'#444':'#ddd' }, ticks: { color: document.body.classList.contains('dark')?'#eee':'#333' } },
+                            x: { ticks: { color: document.body.classList.contains('dark')?'#eee':'#333' } }
+                        }
+                    }
+                });
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                const data = await authFetch('/admin/stats');
+                if (data.code === 0) {
+                    const stats = data.data;
+                    document.getElementById('totalUsers').innerText = stats.total_users || 0;
+                    document.getElementById('totalTasks').innerText = stats.total_tasks || 0;
+                    document.getElementById('todayTasks').innerText = stats.today_tasks || 0;
+                    lastStatusCounts = stats.status_counts || {};
+                    renderChart(lastStatusCounts);
+                }
+            } catch (err) { console.error('仪表盘加载失败', err); }
+        }
+
+        function startDashboardTimer() {
+            if (dashboardTimer) clearInterval(dashboardTimer);
+            dashboardTimer = setInterval(loadDashboard, 30000);
+        }
+
+        document.getElementById('pieChartBtn').addEventListener('click', () => {
+            if (currentChartType === 'pie') return;
+            currentChartType = 'pie';
+            renderChart(lastStatusCounts);
+        });
+        document.getElementById('lineChartBtn').addEventListener('click', () => {
+            if (currentChartType === 'line') return;
+            currentChartType = 'line';
+            renderChart(lastStatusCounts);
+        });
+
+        // 用户管理
+        let userCurrentPage = 1, userKeyword = '';
+        const userLimit = 15;
+
+        async function loadUsers(page = 1) {
+            userCurrentPage = page;
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">加载中...</td></tr>';
+            try {
+                const data = await authFetch(`/admin/users?page=${page}&limit=${userLimit}&keyword=${encodeURIComponent(userKeyword)}`);
+                if (data.code !== 0) throw new Error(data.message);
+                const { list, total, page: curPage } = data.data;
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">暂无用户</td></tr>';
+                    document.getElementById('userPagination').innerHTML = '';
+                    return;
+                }
+                let html = '';
+                list.forEach(user => {
+                    const roleText = user.role === 'super_admin' ? '超级管理员' : '普通用户';
+                    const roleClass = user.role === 'super_admin' ? 'role-admin' : '';
+                    const isSelf = (user.username === username);
+                    html += `<tr>
+                        <td>${user.username} ${isSelf ? '(您)' : ''}</td>
+                        <td><span class="role-badge ${roleClass}">${roleText}</span></td>
+                        <td>${new Date(user.created_at).toLocaleString()}</td>
+                        <td>
+                            ${!isSelf && user.role !== 'super_admin' ? 
+                                `<button class="small" onclick="showSetPasswordModal('${user.user_id}', '${user.username}')"><span class="button_top">设置密码</span></button>
+                                 <button class="small" onclick="deleteUser('${user.user_id}')"><span class="button_top">删除</span></button>` : 
+                                '<span style="color:#64748b;">—</span>'
+                            }
+                        </td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+                const totalPages = Math.ceil(total / userLimit);
+                let pagHtml = '';
+                if (curPage > 1) pagHtml += `<button class="small" onclick="loadUsers(${curPage-1})"><span class="button_top">上一页</span></button>`;
+                pagHtml += `<span>第 ${curPage} / ${totalPages} 页</span>`;
+                if (curPage < totalPages) pagHtml += `<button class="small" onclick="loadUsers(${curPage+1})"><span class="button_top">下一页</span></button>`;
+                document.getElementById('userPagination').innerHTML = pagHtml;
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">加载失败</td></tr>';
+            }
+        }
+        window.loadUsers = loadUsers;
+
+        window.deleteUser = async function(userId) {
+            if (!confirm('确定删除该用户及其所有任务吗？')) return;
+            try {
+                const data = await authFetch(`/admin/users?user_id=${userId}`, { method: 'DELETE' });
+                if (data.code === 0) {
+                    alert('删除成功');
+                    loadUsers(userCurrentPage);
+                    loadDashboard();
+                } else alert('删除失败: ' + data.message);
+            } catch { alert('网络错误'); }
+        };
+
+        document.getElementById('userSearchBtn').addEventListener('click', () => {
+            userKeyword = document.getElementById('userSearchInput').value.trim();
+            loadUsers(1);
+        });
+        document.getElementById('userRefreshBtn').addEventListener('click', () => {
+            document.getElementById('userSearchInput').value = '';
+            userKeyword = '';
+            loadUsers(1);
+        });
+
+        // 任务管理
+        let taskCurrentPage = 1, taskKeyword = '';
+        const taskLimit = 15;
+
+        async function loadTaskStats(page = 1) {
+            taskCurrentPage = page;
+            taskDataLoaded = true;
+            const tbody = document.getElementById('taskTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">加载中...</td></tr>';
+            try {
+                const data = await authFetch(`/admin/tasks/stats?page=${page}&limit=${taskLimit}&keyword=${encodeURIComponent(taskKeyword)}`);
+                if (data.code !== 0) throw new Error(data.message);
+                const { list, total, page: curPage } = data.data;
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">暂无数据</td></tr>';
+                    document.getElementById('taskPagination').innerHTML = '';
+                    return;
+                }
+                let html = '';
+                list.forEach(item => {
+                    html += `<tr>
+                        <td>${item.user_id.substring(0,8)}…</td>
+                        <td>${item.username}</td>
+                        <td>${item.task_count}</td>
+                        <td><button class="small" onclick="openTaskDetail('${item.user_id}', '${item.username}')"><span class="button_top">查看详情</span></button></td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+                const totalPages = Math.ceil(total / taskLimit);
+                let pagHtml = '';
+                if (curPage > 1) pagHtml += `<button class="small" onclick="loadTaskStats(${curPage-1})"><span class="button_top">上一页</span></button>`;
+                pagHtml += `<span>第 ${curPage} / ${totalPages} 页</span>`;
+                if (curPage < totalPages) pagHtml += `<button class="small" onclick="loadTaskStats(${curPage+1})"><span class="button_top">下一页</span></button>`;
+                document.getElementById('taskPagination').innerHTML = pagHtml;
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">加载失败</td></tr>';
+            }
+        }
+        window.loadTaskStats = loadTaskStats;
+
+        document.getElementById('taskSearchBtn').addEventListener('click', () => {
+            taskKeyword = document.getElementById('taskSearchInput').value.trim();
+            loadTaskStats(1);
+        });
+        document.getElementById('taskRefreshBtn').addEventListener('click', () => {
+            document.getElementById('taskSearchInput').value = '';
+            taskKeyword = '';
+            loadTaskStats(1);
+        });
+
+        // 抽屉详情
+        const overlay = document.getElementById('drawerOverlay');
+        const drawer = document.getElementById('drawer');
+        const drawerTitle = document.getElementById('drawerTitle');
+        const drawerBody = document.getElementById('drawerBody');
+        const drawerPagination = document.getElementById('drawerPagination');
+        let currentDetailUserId = null, detailCurrentPage = 1;
+        const detailLimit = 8;
+
+        window.openTaskDetail = function(userId, userName) {
+            currentDetailUserId = userId;
+            drawerTitle.innerText = `${userName} 的任务详情`;
+            overlay.classList.add('show');
+            drawer.classList.add('show');
+            detailCurrentPage = 1;
+            loadTaskDetail();
+        };
+
+        async function loadTaskDetail(page = 1) {
+            if (!currentDetailUserId) return;
+            detailCurrentPage = page;
+            drawerBody.innerHTML = '<div style="text-align:center; padding:2rem;">加载中...</div>';
+            drawerPagination.innerHTML = '';
+            try {
+                const data = await authFetch(`/admin/users/tasks?user_id=${currentDetailUserId}&page=${page}&limit=${detailLimit}`);
+                if (data.code !== 0) throw new Error(data.message);
+                const { list, total, page: curPage } = data.data;
+                if (list.length === 0) {
+                    drawerBody.innerHTML = '<div style="text-align:center; padding:2rem;">该用户暂无任务</div>';
+                    return;
+                }
+                let html = '<table class="task-detail-table"><thead><tr><th>任务ID</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+                list.forEach(task => {
+                    const statusText = task.status === 'completed' ? '已完成' : (task.status === 'pending' ? '等待中' : (task.status === 'processing' ? '处理中' : '失败'));
+                    const audioUrl = task.audio_url ? task.audio_url.replace('../outputs/', '/outputs/') : '';
+                    html += `<tr>
+                        <td>${task.task_id.substring(0,10)}…</td>
+                        <td>${statusText}</td>
+                        <td>${new Date(task.created_at).toLocaleString()}</td>
+                        <td class="task-actions">
+                            ${task.status === 'completed' && audioUrl ? `<audio controls src="${audioUrl}" style="width:140px;height:30px;"></audio>` : ''}
+                            <button class="small" onclick="deleteSingleTask('${task.task_id}')"><span class="button_top">删除</span></button>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                drawerBody.innerHTML = html;
+                const totalPages = Math.ceil(total / detailLimit);
+                let pagHtml = '';
+                if (curPage > 1) pagHtml += `<button class="small" onclick="loadTaskDetail(${curPage-1})"><span class="button_top">上一页</span></button>`;
+                pagHtml += `<span>第 ${curPage} / ${totalPages} 页</span>`;
+                if (curPage < totalPages) pagHtml += `<button class="small" onclick="loadTaskDetail(${curPage+1})"><span class="button_top">下一页</span></button>`;
+                drawerPagination.innerHTML = pagHtml;
+            } catch (err) {
+                drawerBody.innerHTML = '<div style="text-align:center; padding:2rem;">加载失败</div>';
+            }
+        }
+        window.loadTaskDetail = loadTaskDetail;
+
+        window.deleteSingleTask = async function(taskId) {
+            if (!confirm('确定删除该任务吗？相关文件也会被永久删除。')) return;
+            try {
+                const data = await authFetch(`/admin/task?task_id=${taskId}`, { method: 'DELETE' });
+                if (data.code === 0) {
+                    alert('删除成功');
+                    loadTaskDetail(detailCurrentPage);
+                    loadDashboard();
+                    if (taskDataLoaded) loadTaskStats(taskCurrentPage);
+                } else alert('删除失败: ' + data.message);
+            } catch { alert('网络错误'); }
+        };
+
+        function closeDrawer() {
+            overlay.classList.remove('show');
+            drawer.classList.remove('show');
+        }
+        document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+        overlay.addEventListener('click', closeDrawer);
+
+        // 设置密码模态框
+        const passwordModal = document.getElementById('passwordModal');
+        const targetUserNameSpan = document.getElementById('targetUserName');
+        const newPasswordInput = document.getElementById('newPasswordInput');
+        let currentTargetUserId = null;
+
+        window.showSetPasswordModal = function(userId, userName) {
+            currentTargetUserId = userId;
+            targetUserNameSpan.innerText = userName;
+            newPasswordInput.value = '';
+            passwordModal.style.display = 'flex';
+        };
+        window.closePasswordModal = function() {
+            passwordModal.style.display = 'none';
+        };
+        window.submitSetPassword = async function() {
+            const pwd = newPasswordInput.value.trim();
+            if (pwd.length < 6) { alert('密码至少6位'); return; }
+            try {
+                const data = await authFetch('/admin/user/set-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentTargetUserId, new_password: pwd })
+                });
+                if (data.code === 0) {
+                    alert('密码设置成功');
+                    closePasswordModal();
+                } else alert('设置失败: ' + data.message);
+            } catch { alert('网络错误'); }
+        };
+        passwordModal.addEventListener('click', (e) => { if (e.target === passwordModal) closePasswordModal(); });
+
+        // 初始化
+        loadDashboard().then(startDashboardTimer);
+        loadUsers();
+
+        window.addEventListener('beforeunload', () => { if (dashboardTimer) clearInterval(dashboardTimer); });
+    })();
+</script>
+</body>
+</html>

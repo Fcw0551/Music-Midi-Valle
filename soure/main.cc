@@ -1,52 +1,38 @@
 
-#include "Fcw_HttpServer.hpp"
-#include "Fcw_Log.hpp"
-#define WWWROOT "./wwwroot/"
-std::string RequestStr(const HttpRequest &req)
-{
-    std::stringstream ss;
-    ss << req._method << " " << req._path << " " << req._version << "\r\n";
-    for (auto &it : req._params)
-    {
-        ss << it.first << ": " << it.second << "\r\n";
-    }
-    for (auto &it : req._headers)
-    {
-        ss << it.first << ": " << it.second << "\r\n";
-    }
-    ss << "\r\n";
-    ss << req._body;
-    return ss.str();
-}
-void Hello(const HttpRequest &req, HttpResponse *rsp)
-{
-    rsp->setContent(RequestStr(req), "text/plain");
-}
-void Login(const HttpRequest &req, HttpResponse *rsp)
-{
-    rsp->setContent(RequestStr(req), "text/plain");
-}
-void PutFile(const HttpRequest &req, HttpResponse *rsp)
-{
-    std::string pathname = WWWROOT + req._path;
-    Util::writeFile(pathname, req._body);
-}
-void DelFile(const HttpRequest &req, HttpResponse *rsp)
-{
-    rsp->setContent(RequestStr(req), "text/plain");
-}
+#include "../include/Fcw_HttpServer.hpp"
+#include "../include/Fcw_Routes.hpp"
+#include "../include/User_table.hpp"
+#include "../include/Tasks_table.hpp"
+#define HOST "xxx"
+#define MYSQLPORT xxx
+#define USER "xxx"
+#define MYSQLPASSWORD "xxx"
+#define DBNAME "xxx"
+
+#define REDISPORT xxx 
+#define REDISPASSWORD "xxx"
+//mysql
+user_table* g_user_db = nullptr;
+task_table* g_task_db = nullptr;
+
+//redis
+redisContext *g_redis_ctx = nullptr;
 
 
-//测试功能
-int main()
-{
+int main() {
+    g_redis_ctx = redis_util::create(HOST, REDISPORT, REDISPASSWORD);
+    if (!g_redis_ctx)
+    {
+        DBG_LOG("Redis 连接失败");
+    }
+    user_table user_db(HOST, USER, MYSQLPASSWORD, DBNAME, MYSQLPORT);
+    task_table task_db(HOST, USER, MYSQLPASSWORD, DBNAME, MYSQLPORT);
+    g_user_db = &user_db;
+    g_task_db = &task_db;
     HttpServer server(8080);
-    server.setThreadCount(1);
-    server.setBaseDir(WWWROOT); // 设置静态资源根⽬录，告诉服务器有静态资源请求到来，需要到哪⾥去找资源⽂件
-    server.Get("/hello", Hello);
-    server.Post("/login", Login);
-    server.Put("/1234.txt", PutFile);
-    server.Delete("/1234.txt", DelFile);
+    server.setThreadCount(1);           //设置线程数量
+    server.setBaseDir(WWWROOT);       // 静态资源根目录
+    registerRoutes(server);             // 注册路由
     server.listen();
     return 0;
 }

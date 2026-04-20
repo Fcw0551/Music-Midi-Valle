@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 · 霓虹乐章</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #334155;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .logout-btn {
+            background: #b91c1c;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid #334155;
+        }
+        .stat-card h3 {
+            font-size: 1rem;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+        }
+        .stat-card .value {
+            font-size: 2.8rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+        .chart-card {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid #334155;
+        }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .chart-header h3 {
+            color: #cbd5e1;
+        }
+        .chart-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .chart-toggle .btn {
+            padding: 0.4rem 1rem;
+            font-size: 0.9rem;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .search-input {
+            flex: 1;
+            padding: 0.7rem 1rem;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #f1f5f9;
+        }
+        .btn {
+            padding: 0.7rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+        .btn-refresh {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+        }
+        .btn-outline.active {
+            background: #3b82f6;
+            color: white;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            text-align: left;
+            padding: 0.8rem 0.5rem;
+            color: #94a3b8;
+            border-bottom: 1px solid #334155;
+        }
+        td {
+            padding: 0.8rem 0.5rem;
+            border-bottom: 1px solid #1e293b;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .role-badge {
+            background: #2d3748;
+            padding: 0.2rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        .role-admin {
+            background: #854d0e;
+            color: #fde047;
+        }
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 0.5rem;
+        }
+        .tab {
+            padding: 0.5rem 1.2rem;
+            cursor: pointer;
+            border-radius: 20px;
+            background: transparent;
+            color: #94a3b8;
+            transition: 0.2s;
+        }
+        .tab.active {
+            background: #3b82f6;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 抽屉样式 */
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: 0.2s;
+        }
+        .drawer-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 600px;
+            max-width: 90vw;
+            height: 100%;
+            background: #1e293b;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.25s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .drawer.show {
+            transform: translateX(0);
+        }
+        .drawer-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .drawer-header h3 {
+            color: #f1f5f9;
+        }
+        .drawer-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .drawer-body {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        .drawer-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #334155;
+        }
+        .task-detail-table {
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        .task-detail-table th {
+            padding: 0.5rem 0.2rem;
+        }
+        .task-detail-table td {
+            padding: 0.5rem 0.2rem;
+            vertical-align: middle;
+        }
+        .task-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        /* 密码模态框 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 16px;
+            width: 400px;
+            max-width: 90%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .modal-content h3 {
+            margin-bottom: 1rem;
+            color: #f1f5f9;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 0.7rem;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #f1f5f9;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>⚙️ 管理后台 · 霓虹乐章</h1>
+        <div class="user-badge">
+            <span id="adminName"></span>
+            <button class="logout-btn" id="logoutBtn">退出登录</button>
+        </div>
+    </div>
+
+    <!-- 仪表盘区域 -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>👥 总用户数</h3>
+            <div class="value" id="totalUsers">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>📦 总任务数</h3>
+            <div class="value" id="totalTasks">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>📅 今日新增任务</h3>
+            <div class="value" id="todayTasks">-</div>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>📊 任务状态分布</h3>
+            <div class="chart-toggle">
+                <button id="pieChartBtn" class="btn btn-outline active">🥧 饼图</button>
+                <button id="lineChartBtn" class="btn btn-outline">📈 折线图</button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="statusChart" width="400" height="400"></canvas>
+        </div>
+    </div>
+
+    <!-- 标签页切换 -->
+    <div class="tabs">
+        <div class="tab active" data-tab="users">👤 用户管理</div>
+        <div class="tab" data-tab="tasks">📋 任务管理</div>
+    </div>
+
+    <!-- 用户管理面板 -->
+    <div id="users-panel" class="tab-content active">
+        <div class="card">
+            <div class="controls">
+                <input type="text" id="userSearchInput" class="search-input" placeholder="搜索用户名...">
+                <button class="btn btn-primary" id="userSearchBtn">搜索</button>
+                <button class="btn btn-refresh" id="userRefreshBtn">刷新</button>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>用户名</th><th>角色</th><th>注册时间</th><th>操作</th></tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <tr><td colspan="4" style="text-align:center;">加载中...</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="userPagination"></div>
+        </div>
+    </div>
+
+    <!-- 任务管理面板 -->
+    <div id="tasks-panel" class="tab-content">
+        <div class="card">
+            <div class="controls">
+                <input type="text" id="taskSearchInput" class="search-input" placeholder="搜索用户名...">
+                <button class="btn btn-primary" id="taskSearchBtn">搜索</button>
+                <button class="btn btn-refresh" id="taskRefreshBtn">刷新</button>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>用户ID</th><th>用户名</th><th>任务数量</th><th>操作</th></tr>
+                </thead>
+                <tbody id="taskTableBody">
+                    <tr><td colspan="4" style="text-align:center;">加载中...</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="taskPagination"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 抽屉组件 -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<div class="drawer" id="drawer">
+    <div class="drawer-header">
+        <h3 id="drawerTitle">用户任务详情</h3>
+        <button class="drawer-close" id="drawerClose">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody">
+        <div style="text-align:center; padding:2rem;">加载中...</div>
+    </div>
+    <div class="drawer-footer" id="drawerPagination"></div>
+</div>
+
+<!-- 设置密码模态框 -->
+<div class="modal-overlay" id="passwordModal">
+    <div class="modal-content">
+        <h3>设置新密码</h3>
+        <p style="margin-bottom:0.5rem; color:#94a3b8;">用户：<span id="targetUserName"></span></p>
+        <input type="password" id="newPasswordInput" placeholder="请输入新密码（至少6位）">
+        <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+            <button class="btn" onclick="closePasswordModal()">取消</button>
+            <button class="btn btn-primary" onclick="submitSetPassword()">确认</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        "use strict";
+
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'super_admin') {
+            window.location.replace('/');
+            return;
+        }
+
+        document.getElementById('adminName').innerText = username || '管理员';
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.clear();
+            window.location.replace('/index.html');
+        });
+
+        // 标签页切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                const panelId = tab.dataset.tab === 'users' ? 'users-panel' : 'tasks-panel';
+                document.getElementById(panelId).classList.add('active');
+                if (tab.dataset.tab === 'tasks' && !taskDataLoaded) {
+                    loadTaskStats();
+                }
+            });
+        });
+
+        let dashboardTimer = null;
+        let taskDataLoaded = false;
+        let currentChartType = 'pie';
+        let lastStatusCounts = {};
+
+        const pieBtn = document.getElementById('pieChartBtn');
+        const lineBtn = document.getElementById('lineChartBtn');
+
+        pieBtn.addEventListener('click', () => {
+            if (currentChartType === 'pie') return;
+            currentChartType = 'pie';
+            pieBtn.classList.add('active');
+            lineBtn.classList.remove('active');
+            renderChart(lastStatusCounts);
+        });
+
+        lineBtn.addEventListener('click', () => {
+            if (currentChartType === 'line') return;
+            currentChartType = 'line';
+            lineBtn.classList.add('active');
+            pieBtn.classList.remove('active');
+            renderChart(lastStatusCounts);
+        });
+
+        async function authFetch(url, options = {}) {
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                ...options.headers
+            };
+            const response = await fetch(url, { ...options, headers });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            }
+            return response.json();
+        }
+
+        function renderChart(statusCounts) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            if (window.statusChartInstance) {
+                window.statusChartInstance.destroy();
+            }
+
+            const labels = ['等待中', '处理中', '已完成', '失败'];
+            const dataValues = [
+                statusCounts.pending || 0,
+                statusCounts.processing || 0,
+                statusCounts.completed || 0,
+                statusCounts.failed || 0
+            ];
+
+            if (currentChartType === 'pie') {
+                window.statusChartInstance = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: dataValues,
+                            backgroundColor: ['#fbbf24', '#3b82f6', '#10b981', '#ef4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: '#cbd5e1' } }
+                        }
+                    }
+                });
+            } else {
+                window.statusChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '任务数量',
+                            data: dataValues,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 3,
+                            pointBackgroundColor: '#fbbf24',
+                            pointBorderColor: '#fff',
+                            pointRadius: 5,
+                            tension: 0.2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#cbd5e1' } }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: '#334155' },
+                                ticks: { color: '#cbd5e1' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#cbd5e1' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                const data = await authFetch('/admin/stats');
+                if (data.code === 0) {
+                    const stats = data.data;
+                    document.getElementById('totalUsers').innerText = stats.total_users || 0;
+                    document.getElementById('totalTasks').innerText = stats.total_tasks || 0;
+                    document.getElementById('todayTasks').innerText = stats.today_tasks || 0;
+                    
+                    const statusCounts = stats.status_counts || {};
+                    lastStatusCounts = statusCounts;
+                    renderChart(statusCounts);
+                }
+            } catch (err) {
+                console.error('加载仪表盘失败:', err);
+            }
+        }
+
+        function startDashboardTimer() {
+            if (dashboardTimer) clearInterval(dashboardTimer);
+            dashboardTimer = setInterval(() => loadDashboard(), 30000);
+        }
+
+        // ---------- 用户管理 ----------
+        let userCurrentPage = 1;
+        const userLimit = 15;
+        let userKeyword = '';
+
+        async function loadUsers(page = 1) {
+            userCurrentPage = page;
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">加载中...</td></tr>';
+
+            try {
+                const url = `/admin/users?page=${page}&limit=${userLimit}&keyword=${encodeURIComponent(userKeyword)}`;
+                const data = await authFetch(url);
+                if (data.code !== 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">加载失败: ${data.message}</td></tr>`;
+                    return;
+                }
+
+                const { list, total, page: curPage, limit: curLimit } = data.data;
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">暂无用户</td></tr>';
+                    document.getElementById('userPagination').innerHTML = '';
+                    return;
+                }
+
+                let html = '';
+                list.forEach(user => {
+                    const roleText = user.role === 'super_admin' ? '👑 超级管理员' : '👤 普通用户';
+                    const roleClass = user.role === 'super_admin' ? 'role-admin' : '';
+                    const isSelf = (user.username === username);
+                    html += `<tr>
+                        <td>${user.username} ${isSelf ? '(您)' : ''}</td>
+                        <td><span class="role-badge ${roleClass}">${roleText}</span></td>
+                        <td>${new Date(user.created_at).toLocaleString()}</td>
+                        <td>
+                            ${!isSelf && user.role !== 'super_admin' ? 
+                                `<button class="btn btn-primary" style="padding:0.3rem 0.8rem; margin-right:0.3rem;" onclick="showSetPasswordModal('${user.user_id}', '${user.username}')">设置密码</button>
+                                 <button class="btn btn-danger" onclick="deleteUser('${user.user_id}')">删除</button>` : 
+                                '<span style="color:#64748b;">—</span>'
+                            }
+                        </td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+
+                const totalPages = Math.ceil(total / curLimit);
+                let pagHtml = '';
+                if (curPage > 1) pagHtml += `<button class="btn" onclick="loadUsers(${curPage-1})">上一页</button>`;
+                pagHtml += `<span style="margin:0 1rem;">第 ${curPage} / ${totalPages} 页</span>`;
+                if (curPage < totalPages) pagHtml += `<button class="btn" onclick="loadUsers(${curPage+1})">下一页</button>`;
+                document.getElementById('userPagination').innerHTML = pagHtml;
+
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">网络错误</td></tr>';
+            }
+        }
+
+        window.deleteUser = async function(userId) {
+            if (!confirm('确定要删除该用户吗？其所有任务也会被永久删除。')) return;
+            try {
+                const data = await authFetch(`/admin/users?user_id=${userId}`, { method: 'DELETE' });
+                if (data.code === 0) {
+                    alert('删除成功');
+                    loadUsers(userCurrentPage);
+                    loadDashboard();
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            } catch (err) {
+                alert('网络错误');
+            }
+        };
+
+        document.getElementById('userSearchBtn').addEventListener('click', () => {
+            userKeyword = document.getElementById('userSearchInput').value.trim();
+            loadUsers(1);
+        });
+        document.getElementById('userRefreshBtn').addEventListener('click', () => {
+            document.getElementById('userSearchInput').value = '';
+            userKeyword = '';
+            loadUsers(1);
+        });
+
+        // ---------- 任务管理 ----------
+        let taskCurrentPage = 1;
+        const taskLimit = 15;
+        let taskKeyword = '';
+
+        async function loadTaskStats(page = 1) {
+            taskCurrentPage = page;
+            taskDataLoaded = true;
+            const tbody = document.getElementById('taskTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">加载中...</td></tr>';
+
+            try {
+                const url = `/admin/tasks/stats?page=${page}&limit=${taskLimit}&keyword=${encodeURIComponent(taskKeyword)}`;
+                const data = await authFetch(url);
+                if (data.code !== 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">加载失败: ${data.message}</td></tr>`;
+                    return;
+                }
+
+                const { list, total, page: curPage, limit: curLimit } = data.data;
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">暂无用户任务数据</td></tr>';
+                    document.getElementById('taskPagination').innerHTML = '';
+                    return;
+                }
+
+                let html = '';
+                list.forEach(item => {
+                    html += `<tr>
+                        <td>${item.user_id.substring(0, 8)}…</td>
+                        <td>${item.username}</td>
+                        <td>${item.task_count}</td>
+                        <td><button class="btn btn-primary" onclick="openTaskDetail('${item.user_id}', '${item.username}')">查看详情</button></td>
+                    </tr>`;
+                });
+                tbody.innerHTML = html;
+
+                const totalPages = Math.ceil(total / curLimit);
+                let pagHtml = '';
+                if (curPage > 1) pagHtml += `<button class="btn" onclick="loadTaskStats(${curPage-1})">上一页</button>`;
+                pagHtml += `<span style="margin:0 1rem;">第 ${curPage} / ${totalPages} 页</span>`;
+                if (curPage < totalPages) pagHtml += `<button class="btn" onclick="loadTaskStats(${curPage+1})">下一页</button>`;
+                document.getElementById('taskPagination').innerHTML = pagHtml;
+
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">网络错误</td></tr>';
+            }
+        }
+
+        document.getElementById('taskSearchBtn').addEventListener('click', () => {
+            taskKeyword = document.getElementById('taskSearchInput').value.trim();
+            loadTaskStats(1);
+        });
+        document.getElementById('taskRefreshBtn').addEventListener('click', () => {
+            document.getElementById('taskSearchInput').value = '';
+            taskKeyword = '';
+            loadTaskStats(1);
+        });
+
+        // ---------- 抽屉逻辑 ----------
+        const overlay = document.getElementById('drawerOverlay');
+        const drawer = document.getElementById('drawer');
+        const drawerTitle = document.getElementById('drawerTitle');
+        const drawerBody = document.getElementById('drawerBody');
+        const drawerPagination = document.getElementById('drawerPagination');
+        const drawerClose = document.getElementById('drawerClose');
+
+        let currentDetailUserId = null;
+        let currentDetailUserName = '';
+        let detailCurrentPage = 1;
+        const detailLimit = 8;
+
+        function closeDrawer() {
+            overlay.classList.remove('show');
+            drawer.classList.remove('show');
+            currentDetailUserId = null;
+        }
+
+        overlay.addEventListener('click', closeDrawer);
+        drawerClose.addEventListener('click', closeDrawer);
+
+        window.openTaskDetail = function(userId, userName) {
+            currentDetailUserId = userId;
+            currentDetailUserName = userName;
+            drawerTitle.innerText = `${userName} 的任务详情`;
+            overlay.classList.add('show');
+            drawer.classList.add('show');
+            detailCurrentPage = 1;
+            loadTaskDetail();
+        };
+
+        async function loadTaskDetail(page = 1) {
+            if (!currentDetailUserId) return;
+            detailCurrentPage = page;
+            drawerBody.innerHTML = '<div style="text-align:center; padding:2rem;">加载中...</div>';
+            drawerPagination.innerHTML = '';
+
+            try {
+                const url = `/admin/users/tasks?user_id=${currentDetailUserId}&page=${page}&limit=${detailLimit}`;
+                const data = await authFetch(url);
+                if (data.code !== 0) {
+                    drawerBody.innerHTML = `<div style="text-align:center; padding:2rem; color:#f87171;">加载失败: ${data.message}</div>`;
+                    return;
+                }
+
+                const { list, total, page: curPage, limit: curLimit } = data.data;
+                if (list.length === 0) {
+                    drawerBody.innerHTML = '<div style="text-align:center; padding:2rem; color:#94a3b8;">该用户暂无任务</div>';
+                    return;
+                }
+
+                let html = '<table class="task-detail-table"><thead><tr><th>任务ID</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+                list.forEach(task => {
+                    const statusText = task.status === 'completed' ? '✅ 已完成' :
+                                      (task.status === 'pending' ? '⏳ 等待中' :
+                                      (task.status === 'processing' ? '🎶 处理中' : '❌ 失败'));
+                    const audioUrl = task.audio_url ? task.audio_url.replace('../outputs/', '/outputs/') : '';
+                    html += `<tr>
+                        <td>${task.task_id.substring(0, 10)}…</td>
+                        <td>${statusText}</td>
+                        <td>${new Date(task.created_at).toLocaleString()}</td>
+                        <td class="task-actions">
+                            ${task.status === 'completed' && audioUrl ? 
+                                `<audio controls src="${audioUrl}" style="width: 140px; height: 30px;"></audio>` : ''}
+                            <button class="btn btn-danger" style="padding:0.3rem 0.8rem;" onclick="deleteSingleTask('${task.task_id}')">删除</button>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                drawerBody.innerHTML = html;
+
+                const totalPages = Math.ceil(total / curLimit);
+                let pagHtml = '';
+                if (curPage > 1) pagHtml += `<button class="btn" onclick="loadTaskDetail(${curPage-1})">上一页</button>`;
+                pagHtml += `<span style="margin:0 1rem;">第 ${curPage} / ${totalPages} 页</span>`;
+                if (curPage < totalPages) pagHtml += `<button class="btn" onclick="loadTaskDetail(${curPage+1})">下一页</button>`;
+                drawerPagination.innerHTML = pagHtml;
+
+            } catch (err) {
+                console.error(err);
+                drawerBody.innerHTML = '<div style="text-align:center; padding:2rem; color:#f87171;">网络错误</div>';
+            }
+        }
+
+        window.loadTaskDetail = loadTaskDetail;
+
+        window.deleteSingleTask = async function(taskId) {
+            if (!confirm('确定要删除这个任务吗？相关文件也会被永久删除。')) return;
+            try {
+                const data = await authFetch(`/admin/task?task_id=${taskId}`, { method: 'DELETE' });
+                if (data.code === 0) {
+                    alert('删除成功');
+                    loadTaskDetail(detailCurrentPage);
+                    loadDashboard();
+                    if (taskDataLoaded) loadTaskStats(taskCurrentPage);
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            } catch (err) {
+                alert('网络错误');
+            }
+        };
+
+        // ---------- 设置密码模态框 ----------
+        const passwordModal = document.getElementById('passwordModal');
+        const targetUserNameSpan = document.getElementById('targetUserName');
+        const newPasswordInput = document.getElementById('newPasswordInput');
+        let currentTargetUserId = null;
+
+        window.showSetPasswordModal = function(userId, userName) {
+            currentTargetUserId = userId;
+            targetUserNameSpan.innerText = userName;
+            newPasswordInput.value = '';
+            passwordModal.style.display = 'flex';
+        };
+
+        window.closePasswordModal = function() {
+            passwordModal.style.display = 'none';
+            currentTargetUserId = null;
+        };
+
+        window.submitSetPassword = async function() {
+            const newPassword = newPasswordInput.value.trim();
+            if (newPassword.length < 6) {
+                alert('密码长度至少6位');
+                return;
+            }
+            if (!currentTargetUserId) return;
+
+            try {
+                const data = await authFetch('/admin/user/set-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentTargetUserId, new_password: newPassword })
+                });
+                if (data.code === 0) {
+                    alert('密码设置成功');
+                    closePasswordModal();
+                } else {
+                    alert('设置失败: ' + data.message);
+                }
+            } catch (err) {
+                alert('网络错误');
+            }
+        };
+
+        passwordModal.addEventListener('click', function(e) {
+            if (e.target === passwordModal) closePasswordModal();
+        });
+
+        // 初始化
+        loadDashboard().then(() => startDashboardTimer());
+        loadUsers();
+
+        window.addEventListener('beforeunload', () => {
+            if (dashboardTimer) clearInterval(dashboardTimer);
+        });
+    })();
+</script>
+</body>
+</html>
