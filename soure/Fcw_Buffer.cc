@@ -171,5 +171,5 @@
         std::string content(valid_data, valid_len);
 
         // 4. 打印
-        DBG_LOG("Buffer 有效数据长度：%lu 字节，内容：\n%s", valid_len, content.c_str());
+        //DBG_LOG("Buffer 有效数据长度：%lu 字节，内容：\n%s", valid_len, content.c_str());
     }

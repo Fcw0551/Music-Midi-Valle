@@ -17,12 +17,34 @@
     ,_socket(_sockfd)
     ,_channel(loop, _sockfd)
     {
-        //注册事件的回调函数
-        _channel.setCloseCallback(std::bind(&Connection::handleClose,this));
-        _channel.setEventCallback(std::bind(&Connection::handleEvent,this));
-        _channel.setReadCallback(std::bind(&Connection::handleRead, this));
-        _channel.setWriteCallback(std::bind(&Connection::handleWrite,this));
-        _channel.setErrorCallback(std::bind(&Connection::handleError,this));
+        // //注册事件的回调函数
+        // _channel.setCloseCallback(std::bind(&Connection::handleClose,this));
+        // _channel.setEventCallback(std::bind(&Connection::handleEvent,this));
+        // _channel.setReadCallback(std::bind(&Connection::handleRead, this));
+        // _channel.setWriteCallback(std::bind(&Connection::handleWrite,this));
+        // _channel.setErrorCallback(std::bind(&Connection::handleError,this));
+        // 注册事件的回调函数，使用 weak_ptr 防止悬空指针
+        std::weak_ptr<Connection> weak_self = weak_from_this();
+
+        _channel.setReadCallback([weak_self]()
+                                 {
+    if (auto self = weak_self.lock()) self->handleRead(); });
+
+        _channel.setWriteCallback([weak_self]()
+                                  {
+    if (auto self = weak_self.lock()) self->handleWrite(); });
+
+        _channel.setCloseCallback([weak_self]()
+                                  {
+    if (auto self = weak_self.lock()) self->handleClose(); });
+
+        _channel.setErrorCallback([weak_self]()
+                                  {
+    if (auto self = weak_self.lock()) self->handleError(); });
+
+        _channel.setEventCallback([weak_self]()
+                                  {
+    if (auto self = weak_self.lock()) self->handleEvent(); });
     }
     Connection::~Connection() {
         DBG_LOG("release connection:%p", this); 
@@ -106,12 +128,39 @@
     // 连接获取之后，所处的状态下要进⾏各种设置（启动读监控,调⽤回调函数）
     void Connection::establishedInLoop()
     {
-        // 1. 修改连接状态； 
-        //2. 启动读事件监控； 
-        //3. 调⽤回调函数
-        assert(_statu == CONNECTING); // 当前的状态必须⼀定是上层的半连接状态
-        _statu = CONNECTED;           // 当前函数执⾏完毕，则连接进⼊已完成连接状态
-        // ⼀旦启动读事件监控就有可能会⽴即触发读事件，如果这时候启动了⾮活跃连接销毁
+        // // 1. 修改连接状态； 
+        // //2. 启动读事件监控； 
+        // //3. 调⽤回调函数
+        // assert(_statu == CONNECTING); // 当前的状态必须⼀定是上层的半连接状态
+        // _statu = CONNECTED;           // 当前函数执⾏完毕，则连接进⼊已完成连接状态
+        // // ⼀旦启动读事件监控就有可能会⽴即触发读事件，如果这时候启动了⾮活跃连接销毁
+        // _channel.enableRead();
+        // if (_connectedCallback)
+        //     _connectedCallback(shared_from_this());
+
+        assert(_statu == CONNECTING);
+        _statu = CONNECTED;
+
+        // 此时对象已由 shared_ptr 完整管理，安全获取 weak_ptr
+        std::weak_ptr<Connection> weak_self = weak_from_this();
+
+        // 重新设置所有 Channel 回调为 weak_ptr 捕获版本
+        _channel.setReadCallback([weak_self]()
+                                 {
+        if (auto self = weak_self.lock()) self->handleRead(); });
+        _channel.setWriteCallback([weak_self]()
+                                  {
+        if (auto self = weak_self.lock()) self->handleWrite(); });
+        _channel.setCloseCallback([weak_self]()
+                                  {
+        if (auto self = weak_self.lock()) self->handleClose(); });
+        _channel.setErrorCallback([weak_self]()
+                                  {
+        if (auto self = weak_self.lock()) self->handleError(); });
+        _channel.setEventCallback([weak_self]()
+                                  {
+        if (auto self = weak_self.lock()) self->handleEvent(); });
+
         _channel.enableRead();
         if (_connectedCallback)
             _connectedCallback(shared_from_this());
@@ -119,21 +168,31 @@
     // 这个接⼝才是实际的释放接⼝
     void Connection::releaseInLoop()
     {
-        // 1. 修改连接状态，将其置为DISCONNECTED
+        // // 1. 修改连接状态，将其置为DISCONNECTED
+        // _statu = DISCONNECTED;
+        // // 2. 移除连接的事件监控
+        // _channel.remove();
+        // // 3. 关闭描述符
+        // _socket.close();
+        // // 4. 如果当前定时器队列中还有定时销毁任务，则取消任务
+        // if (_loop->hasTimer(_connid))
+        //     cancelInactiveReleaseInLoop();
+        // // 5. 调⽤关闭回调函数，避免先移除服务器管理的连接信息导致Connection被释放，再去处理会出错，因此先调⽤⽤⼾的回调函数
+        // if (_closedCallback)
+        //     _closedCallback(shared_from_this());
+        // // 移除服务器内部管理的连接信息
+        // if (_serverClosedCallback)
+        //     _serverClosedCallback(shared_from_this());
+        auto guard = shared_from_this(); // 确保回调执行期间对象存活
         _statu = DISCONNECTED;
-        // 2. 移除连接的事件监控
         _channel.remove();
-        // 3. 关闭描述符
         _socket.close();
-        // 4. 如果当前定时器队列中还有定时销毁任务，则取消任务
         if (_loop->hasTimer(_connid))
             cancelInactiveReleaseInLoop();
-        // 5. 调⽤关闭回调函数，避免先移除服务器管理的连接信息导致Connection被释放，再去处理会出错，因此先调⽤⽤⼾的回调函数
         if (_closedCallback)
-            _closedCallback(shared_from_this());
-        // 移除服务器内部管理的连接信息
+            _closedCallback(guard);
         if (_serverClosedCallback)
-            _serverClosedCallback(shared_from_this());
+            _serverClosedCallback(guard);
     }
 
     // 这个接⼝并不是实际的发送接⼝，⽽只是把数据放到了发送缓冲区，启动了可写事件监控
@@ -164,14 +223,26 @@
     }
     // 启动⾮活跃连接超时释放规则
     void Connection::enableInactiveReleaseInLoop(int sec){
-        // 1. 将判断标志 _enable_inactive_release 置为true
+        // // 1. 将判断标志 _enable_inactive_release 置为true
+        // _enableInactiveRelease = true;
+        // // 2. 如果当前定时销毁任务已经存在，那就刷新延迟⼀下即可
+        // if (_loop->hasTimer(_connid)){
+        //     return _loop->timerRefresh(_connid);
+        // }
+        // // 3. 如果不存在定时销毁任务，则新增
+        // _loop->timerAdd(_connid, sec, std::bind(&Connection::release, this));
+
         _enableInactiveRelease = true;
-        // 2. 如果当前定时销毁任务已经存在，那就刷新延迟⼀下即可
-        if (_loop->hasTimer(_connid)){
+        if (_loop->hasTimer(_connid))
+        {
             return _loop->timerRefresh(_connid);
         }
-        // 3. 如果不存在定时销毁任务，则新增
-        _loop->timerAdd(_connid, sec, std::bind(&Connection::release, this));
+        std::weak_ptr<Connection> weak_self = shared_from_this();
+        _loop->timerAdd(_connid, sec, [weak_self]()
+                        {
+        if (auto self = weak_self.lock()) {
+            self->release();
+        } });
     }
     void Connection::cancelInactiveReleaseInLoop(){
         _enableInactiveRelease = false;

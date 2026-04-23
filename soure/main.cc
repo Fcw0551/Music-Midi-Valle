@@ -3,14 +3,14 @@
 #include "../include/Fcw_Routes.hpp"
 #include "../include/User_table.hpp"
 #include "../include/Tasks_table.hpp"
-#define HOST "xxx"
-#define MYSQLPORT xxx
-#define USER "xxx"
-#define MYSQLPASSWORD "xxx"
-#define DBNAME "xxx"
+#define HOST "127.0.0.1"
+#define MYSQLPORT 3306
+#define USER "wcf"
+#define MYSQLPASSWORD "Aa1750551"
+#define DBNAME "music_db"
 
-#define REDISPORT xxx 
-#define REDISPASSWORD "xxx"
+#define REDISPORT 6379 
+#define REDISPASSWORD "Aa1750551"
 //mysql
 user_table* g_user_db = nullptr;
 task_table* g_task_db = nullptr;
@@ -30,7 +30,7 @@ int main() {
     g_user_db = &user_db;
     g_task_db = &task_db;
     HttpServer server(8080);
-    server.setThreadCount(1);           //设置线程数量
+    server.setThreadCount(1);           //设置工作线程数量
     server.setBaseDir(WWWROOT);       // 静态资源根目录
     registerRoutes(server);             // 注册路由
     server.listen();
