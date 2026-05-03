@@ -888,6 +888,124 @@ static bool convert_image_to_midi(const std::string &image_path,
 
 
 // 图片转 MIDI 接口
+// void handle_convert_images(const HttpRequest &req, HttpResponse *rsp) {
+//     DBG_LOG("进入图片转MIDI接口(异步)");
+//     // 1. 认证
+//     std::string user_id = route_util::authenticate(req, rsp);
+//     if (user_id.empty()) return;
+
+//     // 2. 解析 multipart
+//     HttpRequest &mutable_req = const_cast<HttpRequest&>(req);
+//     if (!mutable_req.parseMultipart()) {
+//         route_util::send_json_response(rsp, 400, 2, "请求格式错误");
+//         return;
+//     }
+//     const auto& files = req.getMultipartFiles();
+
+//     // 3. 检查目标图片
+//     auto it_target = files.find("target_image");
+//     if (it_target == files.end() || it_target->second.content.empty()) {
+//         route_util::send_json_response(rsp, 400, 2, "缺少目标图片");
+//         return;
+//     }
+//     const auto& target_file = it_target->second;
+//     std::string target_ext = route_util::get_file_extension(target_file.filename);
+//     if (target_ext != "png" && target_ext != "jpg" && target_ext != "jpeg") {
+//         route_util::send_json_response(rsp, 400, 2, "目标图片格式不支持，仅支持 png/jpg/jpeg");
+//         return;
+//     }
+
+//     // 4. 检查参考图片
+//     auto it_ref = files.find("ref_image");
+//     if (it_ref == files.end() || it_ref->second.content.empty()) {
+//         route_util::send_json_response(rsp, 400, 2, "缺少参考图片");
+//         return;
+//     }
+//     const auto& ref_file = it_ref->second;
+//     std::string ref_ext = route_util::get_file_extension(ref_file.filename);
+//     if (ref_ext != "png" && ref_ext != "jpg" && ref_ext != "jpeg") {
+//         route_util::send_json_response(rsp, 400, 2, "参考图片格式不支持，仅支持 png/jpg/jpeg");
+//         return;
+//     }
+
+//     // 5. 检查参考音频
+//     auto it_audio = files.find("ref_audio");
+//     if (it_audio == files.end() || it_audio->second.content.empty()) {
+//         route_util::send_json_response(rsp, 400, 2, "缺少参考音频");
+//         return;
+//     }
+//     const auto& audio_file = it_audio->second;
+//     std::string audio_ext = route_util::get_file_extension(audio_file.filename);
+//     if (audio_ext != "wav") {
+//         route_util::send_json_response(rsp, 400, 2, "参考音频格式不支持，仅支持 .wav");
+//         return;
+//     }
+
+//     // 6. 生成任务 ID 并创建目录
+//     std::string task_id = route_util::generate_task_id();
+//     std::string task_dir = "../uploads/" + task_id;
+//     if (mkdir(task_dir.c_str(), 0755) != 0 && errno != EEXIST) {
+//         DBG_LOG("创建任务目录失败: %s", task_dir.c_str());
+//         route_util::send_json_response(rsp, 500, 6, "服务器内部错误");
+//         return;
+//     }
+
+//     // 7. 保存文件到任务目录
+//     std::string target_path = task_dir + "/target." + target_ext;
+//     if (!route_util::save_file(target_file.content, target_path)) {
+//         DBG_LOG("保存目标图片失败: %s", target_path.c_str());
+//         route_util::send_json_response(rsp, 500, 6, "服务器内部错误");
+//         return;
+//     }
+
+//     std::string ref_path = task_dir + "/ref." + ref_ext;
+//     if (!route_util::save_file(ref_file.content, ref_path)) {
+//         DBG_LOG("保存参考图片失败: %s", ref_path.c_str());
+//         route_util::send_json_response(rsp, 500, 6, "服务器内部错误");
+//         return;
+//     }
+
+//     std::string audio_path = task_dir + "/ref.wav";
+//     if (!route_util::save_file(audio_file.content, audio_path)) {
+//         DBG_LOG("保存参考音频失败: %s", audio_path.c_str());
+//         route_util::send_json_response(rsp, 500, 6, "服务器内部错误");
+//         return;
+//     }
+
+//     // 8.写入 MySQL（状态设为 pending_convert，MIDI 路径暂留空）
+//     Json::Value task_data;
+//     task_data["task_id"] = task_id;
+//     task_data["user_id"] = user_id;
+//     task_data["midi_path"] = Json::Value(Json::nullValue);
+//     task_data["ref_midi_path"] = Json::Value(Json::nullValue);
+//     task_data["ref_audio_path"] = audio_path;
+//     task_data["status"] = "pending";                        
+//     task_data["audio_url"] = Json::Value(Json::nullValue);
+//     task_data["error_msg"] = Json::Value(Json::nullValue);
+
+//     if (!g_task_db->insert(task_data)) {
+//         DBG_LOG("任务写入数据库失败: task_id=%s", task_id.c_str());
+//         route_util::send_json_response(rsp, 500, 6, "服务器内部错误");
+//         return;
+//     }
+
+//     // 9. 推入 Redis 转换队列（而非推理队列）
+//     if (g_redis_ctx) {
+//         if (!redis_util::lpush(g_redis_ctx, "music:convert:queue", task_id)) {
+//             DBG_LOG("Redis 推送失败，任务 %s 将依赖补偿机制", task_id.c_str());
+//         }
+//     } else {
+//         DBG_LOG("Redis 连接不可用，任务 %s 未能入队", task_id.c_str());
+//     }
+
+//     // 10. 返回成功
+//     Json::Value resp_data;
+//     resp_data["task_id"] = task_id;
+//     route_util::send_json_response(rsp, 202, 0, "任务已提交", resp_data);
+//     DBG_LOG("图片转MIDI任务已入队, task_id=%s", task_id.c_str());
+// }
+
+
 void handle_convert_images(const HttpRequest &req, HttpResponse *rsp) {
     DBG_LOG("进入图片转MIDI接口(异步)");
     // 1. 认证
@@ -915,32 +1033,29 @@ void handle_convert_images(const HttpRequest &req, HttpResponse *rsp) {
         return;
     }
 
-    // 4. 检查参考图片
-    auto it_ref = files.find("ref_image");
-    if (it_ref == files.end() || it_ref->second.content.empty()) {
-        route_util::send_json_response(rsp, 400, 2, "缺少参考图片");
-        return;
-    }
-    const auto& ref_file = it_ref->second;
-    std::string ref_ext = route_util::get_file_extension(ref_file.filename);
-    if (ref_ext != "png" && ref_ext != "jpg" && ref_ext != "jpeg") {
-        route_util::send_json_response(rsp, 400, 2, "参考图片格式不支持，仅支持 png/jpg/jpeg");
-        return;
+    // ---- 改动：解析 style 参数，选择内置 prompt 路径 ----
+    std::string style = "A"; // 默认风格
+    if (req.hasParam("style")) {
+        std::string s = req.GetParam("style");
+        if (!s.empty()) style = s;
     }
 
-    // 5. 检查参考音频
-    auto it_audio = files.find("ref_audio");
-    if (it_audio == files.end() || it_audio->second.content.empty()) {
-        route_util::send_json_response(rsp, 400, 2, "缺少参考音频");
-        return;
-    }
-    const auto& audio_file = it_audio->second;
-    std::string audio_ext = route_util::get_file_extension(audio_file.filename);
-    if (audio_ext != "wav") {
-        route_util::send_json_response(rsp, 400, 2, "参考音频格式不支持，仅支持 .wav");
-        return;
-    }
+    // 内置风格映射表（可随时扩展）
+    static const std::map<std::string, std::pair<std::string, std::string>> STYLE_MAP = {
+        {"A", {"/root/Music_model/midi-valle/egs/atepp/prompts/prompt_A.midi",
+               "/root/Music_model/midi-valle/egs/atepp/prompts/prompt_A.wav"}},
+        {"B", {"/root/Music_model/midi-valle/egs/atepp/prompts/prompt_B.midi",
+               "/root/Music_model/midi-valle/egs/atepp/prompts/prompt_B.wav"}}
+    };
 
+    auto it_style = STYLE_MAP.find(style);
+    if (it_style == STYLE_MAP.end()) {
+        route_util::send_json_response(rsp, 400, 2, "无效的风格参数");
+        return;
+    }
+    std::string ref_midi_path = it_style->second.first;
+    std::string ref_audio_path = it_style->second.second;
+   
     // 6. 生成任务 ID 并创建目录
     std::string task_id = route_util::generate_task_id();
     std::string task_dir = "../uploads/" + task_id;
@@ -950,7 +1065,7 @@ void handle_convert_images(const HttpRequest &req, HttpResponse *rsp) {
         return;
     }
 
-    // 7. 保存文件到任务目录
+    // 7. 保存目标图片
     std::string target_path = task_dir + "/target." + target_ext;
     if (!route_util::save_file(target_file.content, target_path)) {
         DBG_LOG("保存目标图片失败: %s", target_path.c_str());
@@ -958,28 +1073,14 @@ void handle_convert_images(const HttpRequest &req, HttpResponse *rsp) {
         return;
     }
 
-    std::string ref_path = task_dir + "/ref." + ref_ext;
-    if (!route_util::save_file(ref_file.content, ref_path)) {
-        DBG_LOG("保存参考图片失败: %s", ref_path.c_str());
-        route_util::send_json_response(rsp, 500, 6, "服务器内部错误");
-        return;
-    }
-
-    std::string audio_path = task_dir + "/ref.wav";
-    if (!route_util::save_file(audio_file.content, audio_path)) {
-        DBG_LOG("保存参考音频失败: %s", audio_path.c_str());
-        route_util::send_json_response(rsp, 500, 6, "服务器内部错误");
-        return;
-    }
-
-    // 8.写入 MySQL（状态设为 pending_convert，MIDI 路径暂留空）
+    // 8. 写入 MySQL（ref 路径使用内置 prompt）
     Json::Value task_data;
     task_data["task_id"] = task_id;
     task_data["user_id"] = user_id;
     task_data["midi_path"] = Json::Value(Json::nullValue);
-    task_data["ref_midi_path"] = Json::Value(Json::nullValue);
-    task_data["ref_audio_path"] = audio_path;
-    task_data["status"] = "pending";                        
+    task_data["ref_midi_path"] = ref_midi_path;     // 内置路径
+    task_data["ref_audio_path"] = ref_audio_path;   // 内置路径
+    task_data["status"] = "pending";
     task_data["audio_url"] = Json::Value(Json::nullValue);
     task_data["error_msg"] = Json::Value(Json::nullValue);
 
@@ -989,7 +1090,7 @@ void handle_convert_images(const HttpRequest &req, HttpResponse *rsp) {
         return;
     }
 
-    // 9. 推入 Redis 转换队列（而非推理队列）
+    // 9. 推入 Redis 转换队列
     if (g_redis_ctx) {
         if (!redis_util::lpush(g_redis_ctx, "music:convert:queue", task_id)) {
             DBG_LOG("Redis 推送失败，任务 %s 将依赖补偿机制", task_id.c_str());
@@ -1002,5 +1103,5 @@ void handle_convert_images(const HttpRequest &req, HttpResponse *rsp) {
     Json::Value resp_data;
     resp_data["task_id"] = task_id;
     route_util::send_json_response(rsp, 202, 0, "任务已提交", resp_data);
-    DBG_LOG("图片转MIDI任务已入队, task_id=%s", task_id.c_str());
+    DBG_LOG("图片转MIDI任务已入队, task_id=%s, 风格=%s", task_id.c_str(), style.c_str());
 }

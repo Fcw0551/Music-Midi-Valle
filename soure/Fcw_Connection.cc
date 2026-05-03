@@ -52,22 +52,44 @@
     /*五个channel的事件回调函数*/
     // 描述符可读事件触发后调⽤的函数，接收socket数据放到接收缓冲区中，然后调⽤_messageCallback 
     void Connection::handleRead(){
-        // 1. 接收socket的数据，放到缓冲区
+        // // 1. 接收socket的数据，放到缓冲区
+        // char buf[65536];
+        // ssize_t ret = _socket.recvNoBlock(buf, 65535);
+        // if (ret < 0)
+        // {
+        //     // 出错了,不能直接关闭连接
+        //     return shutdownInLoop();
+        // }
+        // // 这⾥的等于0表⽰的是没有读取到数据，⽽并不是连接断开了，连接断开返回的是-1
+        // // 将数据放⼊输⼊缓冲区,写⼊之后顺便将写偏移向后移动
+        // _inBuffer.writeAndPush(buf, ret);
+        // // 2. 调⽤message_callback进⾏业务处理
+        // if (_inBuffer.readSize() > 0)
+        // {   
+        //     // shared_from_this--从当前对象⾃⾝获取⾃⾝的shared_ptr管理对象
+        //     return _messageCallback(shared_from_this(), &_inBuffer);
+        // }
+
         char buf[65536];
         ssize_t ret = _socket.recvNoBlock(buf, 65535);
         if (ret < 0)
         {
-            // 出错了,不能直接关闭连接
+            // 真实错误
             return shutdownInLoop();
         }
-        // 这⾥的等于0表⽰的是没有读取到数据，⽽并不是连接断开了，连接断开返回的是-1
-        // 将数据放⼊输⼊缓冲区,写⼊之后顺便将写偏移向后移动
-        _inBuffer.writeAndPush(buf, ret);
-        // 2. 调⽤message_callback进⾏业务处理
+        if (ret == 0 && _inBuffer.readSize() == 0)
+        {
+            // 对端关闭且没有数据需要处理，直接挂断
+            return shutdownInLoop();
+        }
+        if (ret > 0)
+        {
+            _inBuffer.writeAndPush(buf, ret);
+        }
+        // 处理业务
         if (_inBuffer.readSize() > 0)
-        {   
-            // shared_from_this--从当前对象⾃⾝获取⾃⾝的shared_ptr管理对象
-            return _messageCallback(shared_from_this(), &_inBuffer);
+        {
+            _messageCallback(shared_from_this(), &_inBuffer);
         }
     }
     // 描述符可写事件触发后调⽤的函数，将发送缓冲区中的数据进⾏发送
@@ -303,42 +325,77 @@
 
     // 连接建⽴就绪后，进⾏channel回调设置，启动读监控，调⽤_connectedCallback
     void Connection::established(){
-        _loop->runInLoop(std::bind(&Connection::establishedInLoop, this));
+        // _loop->runInLoop(std::bind(&Connection::establishedInLoop, this));
+        _loop->runInLoop([weak_self = weak_from_this()]()
+                         {
+        auto self = weak_self.lock();
+        if (self) self->establishedInLoop(); });
     }
 
     // 发送数据，将数据放到发送缓冲区，启动写事件监控
     void Connection::send(const char *data, size_t len){
         // 外界传⼊的data，可能是个临时的空间，我们现在只是把发送操作压⼊了任务池，有可能并没有被⽴即执⾏
         // 因此有可能执⾏的时候，data指向的空间有可能已经被释放了。
+        // Buffer buf;
+        // buf.writeAndPush(data, len);
+        // _loop->runInLoop(std::bind(&Connection::sendInLoop, this,std::move(buf)));
         Buffer buf;
         buf.writeAndPush(data, len);
-        _loop->runInLoop(std::bind(&Connection::sendInLoop, this,std::move(buf)));
+        _loop->runInLoop([weak_self = weak_from_this(), buf = std::move(buf)]() mutable
+                         {
+        auto self = weak_self.lock();
+        if (self) self->sendInLoop(buf); });
     }
 
 
     // 提供给组件使⽤者的关闭接⼝--并不实际关闭，需要判断有没有数据待处理
     void Connection::shutdown(){
-        _loop->runInLoop(std::bind(&Connection::shutdownInLoop, this));
+        // _loop->runInLoop(std::bind(&Connection::shutdownInLoop, this));
+        _loop->runInLoop([weak_self = weak_from_this()]()
+                         {
+        auto self = weak_self.lock();
+        if (self) self->shutdownInLoop(); });
     }
     void Connection::release(){
-        _loop->queueInLoop(std::bind(&Connection::releaseInLoop, this));
+        // _loop->queueInLoop(std::bind(&Connection::releaseInLoop, this));
+        // 防止重复投递
+        if (_statu == DISCONNECTED)
+            return;
+        std::weak_ptr<Connection> weak_self = shared_from_this();
+        _loop->queueInLoop([weak_self]()
+                           {
+        auto self = weak_self.lock();
+        if (self) self->releaseInLoop(); });
     }
     
     // 启动⾮活跃销毁，并定义多⻓时间⽆通信就是⾮活跃，添加定时任务
     void Connection::enableInactiveRelease(int sec){
-        _loop -> runInLoop(std::bind(&Connection::enableInactiveReleaseInLoop, this, sec));
+        // _loop -> runInLoop(std::bind(&Connection::enableInactiveReleaseInLoop, this, sec));
+         _loop->runInLoop([weak_self = weak_from_this(), sec]() {
+        auto self = weak_self.lock();
+        if (self) self->enableInactiveReleaseInLoop(sec);
+    });
     }
 
     // 取消⾮活跃销毁
     void Connection::cancelInactiveRelease(){
-        _loop -> runInLoop(std::bind(&Connection::cancelInactiveReleaseInLoop, this));
+        // _loop -> runInLoop(std::bind(&Connection::cancelInactiveReleaseInLoop, this));
+        _loop->runInLoop([weak_self = weak_from_this()]() {
+        auto self = weak_self.lock();
+        if (self) self->cancelInactiveReleaseInLoop();
+    });
     }
 
     // 切换协议---重置上下⽂以及阶段性回调处理函数 -- ⽽是这个接⼝必须在EventLoop线程中⽴即执⾏
     // 防备新的事件触发后，处理的时候，切换任务还没有被执⾏--会导致数据使⽤原协议处理了。
     void Connection::upgrade(const Any &context, const ConnectedCallback &conn, const MessageCallback &msg,
                  const ClosedCallback &closed, const AnyEventCallback &event){
+        // _loop->assertInLoop();
+        // _loop->runInLoop(std::bind(&Connection::upgradeInLoop, this,context, conn, msg, closed, event));
         _loop->assertInLoop();
-        _loop->runInLoop(std::bind(&Connection::upgradeInLoop, this,context, conn, msg, closed, event));
+        _loop->runInLoop([weak_self = weak_from_this(), context, conn, msg, closed, event]()
+                         {
+        auto self = weak_self.lock();
+        if (self) self->upgradeInLoop(context, conn, msg, closed, event); });
     }
 

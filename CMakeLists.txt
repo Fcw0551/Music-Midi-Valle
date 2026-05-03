@@ -9,6 +9,18 @@ project(music VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # 强制要求标准，否则报错
 
+# ========== 调试选项 ==========
+# 设置默认构建类型为 Debug（包含调试符号，关闭优化）
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+
+# Debug 模式下使用 -g -O0 生成完整调试信息
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+# Release 模式保持原有优化（如果将来需要）
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+# ===================================
+
 #源文件列表
 set(SOURCES ./soure/main.cc 
             ./soure/Fcw_Util.cc 
